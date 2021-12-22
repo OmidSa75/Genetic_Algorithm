@@ -44,7 +44,7 @@ class IndividualFactory:
          a random population as a starting point
         :return: Individual
         """
-        random_genotype = np.random.random((self.genotype_length,))
+        random_genotype = np.random.randn(self.genotype_length)
         fitness = self.fitness_evaluator.evaluate(random_genotype, self.x, self.bias, self.goal)
         return Individual(random_genotype, fitness)
 
@@ -178,8 +178,8 @@ class Mutator:
         mutation_probability = 1 / len(individual.genotype)
 
         mutated_genotype = individual.genotype
-        mutated_genotype = np.where(np.random.random((len(mutated_genotype),)) > mutation_probability,
-                                    np.random.random((len(mutated_genotype,))), mutated_genotype)
+        mutated_genotype = np.where(np.random.randn(len(mutated_genotype)) > mutation_probability,
+                                    (-1) * mutated_genotype, mutated_genotype)
 
         return self.individual_factory.with_set_genotype(genotype=mutated_genotype)
 
@@ -201,7 +201,7 @@ class Breeder:
         """
         offspring = []
         number_of_parents = len(parents)
-        for index in range(int(number_of_parents)):
+        for index in range(int(number_of_parents/2)):
             parent_1, parent_2 = self._pick_random_parents(parents, number_of_parents)
             child_1, child_2 = self.single_point_crossover.crossover(parent_1, parent_2)
             child_1_mutated = self.mutator.mutate(child_1)
@@ -226,7 +226,7 @@ class Environment:
     def update(self):
         parents = self.parent_selector.select_parents(self.population)
         next_generation = self.breeder.produce_offspring(parents)
-        self.population = self.population_factory.with_individuals(random.sample(next_generation, len(parents)))
+        self.population = self.population_factory.with_individuals(next_generation)
         # self.population = self.population_factory.with_individuals(self.population.get_the_fittest(len(parents)))
 
     def get_the_fittest(self, n: int):
@@ -234,14 +234,14 @@ class Environment:
 
 
 if __name__ == '__main__':
-    TOTAL_GENERATIONS = 10000
-    POPULATION_SIZE = 100
+    TOTAL_GENERATIONS = 50000
+    POPULATION_SIZE = 50
     GENOTYPE_LENGTH = 6
 
     current_generation = 1
 
-    x = np.random.random((GENOTYPE_LENGTH,))
-    bias = np.random.random((1,))
+    x = np.random.randn(GENOTYPE_LENGTH)
+    bias = np.random.randn(1)
     goal = 0
     print("X: {}\nbias: {}".format(x, bias))
 
