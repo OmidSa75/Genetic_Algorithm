@@ -1,33 +1,40 @@
 import random
+import typing
+
+import numpy as np
 import matplotlib.pyplot as plt
 
 
 class GenotypeDecoder:
-    def decode(self, genotype: str):
-        return int(genotype, 2) ** 2
+    def decode(self, genotype: np.ndarray, x: np.ndarray, bias: typing.Union[int, np.ndarray]):
+        return sum((genotype * x) + bias)
 
 
 class FitnessEvaluator:
     def __init__(self, genotype_decoder: GenotypeDecoder):
         self.genotype_decoder = genotype_decoder
 
-    def evaluate(self, genotype: str):
-        return self.genotype_decoder.decode(genotype)
+    def evaluate(self, genotype: np.ndarray, x: np.ndarray, bias: typing.Union[int, np.ndarray], goal_value: int):
+        return abs(self.genotype_decoder.decode(genotype, x, bias) - goal_value)
 
 
 class Individual:
-    def __init__(self, genotype: str, fitness: int):
+    def __init__(self, genotype: np.ndarray, fitness: int):
         self.genotype = genotype
         self.fitness = fitness
 
     def __repr__(self):
-        return "Individual/genotype = " + self.genotype + " Fitness = " + str(self.fitness)
+        return "Individual/genotype = " + str(self.genotype) + " Fitness = " + str(self.fitness)
 
 
 class IndividualFactory:
-    def __init__(self, genotype_length: int, fitness_evaluator: FitnessEvaluator):
+    def __init__(self, genotype_length: int, fitness_evaluator: FitnessEvaluator, x: np.ndarray,
+                 bias: typing.Union[int, np.ndarray], goal_value: int):
         self.genotype_length = genotype_length
         self.fitness_evaluator = fitness_evaluator
+        self.x = x
+        self.bias = bias
+        self.goal = goal_value
 
         self.binary_string_format = '{:0' + str(self.genotype_length) + 'b}'
 
@@ -37,19 +44,18 @@ class IndividualFactory:
          a random population as a starting point
         :return: Individual
         """
-        genotype_max_value = 2 ** self.genotype_length
-        random_genotype = self.binary_string_format.format(random.randint(0, genotype_max_value))
-        fitness = self.fitness_evaluator.evaluate(random_genotype)
+        random_genotype = np.random.random((self.genotype_length,))
+        fitness = self.fitness_evaluator.evaluate(random_genotype, self.x, self.bias, self.goal)
         return Individual(random_genotype, fitness)
 
-    def with_set_genotype(self, genotype: str):
+    def with_set_genotype(self, genotype: np.ndarray):
         """
         Creates an individual with a provided genotype-used when a new individual is created through the breeding of
         two individuals from the previous generation.
         :param genotype:
         :return:
         """
-        fitness = self.fitness_evaluator.evaluate(genotype)
+        fitness = self.fitness_evaluator.evaluate(genotype, self.x, self.bias, self.goal)
         return Individual(genotype, fitness)
 
     def with_minimal_fitness(self):
@@ -68,6 +74,7 @@ class Population:
     Population class holds a collection of individuals. It provides a way of getting the fittest individuals through
     `get_the_fittest` method.
     """
+
     def __init__(self, individuals):
         self.individuals = individuals
 
@@ -76,7 +83,7 @@ class Population:
         return self.individuals[:n]
 
     def _sort_by_fitness(self):
-        self.individuals.sort(key=self._individual_fitness_sort_key, reverse=True)
+        self.individuals.sort(key=self._individual_fitness_sort_key, reverse=False)
 
     def _individual_fitness_sort_key(self, individual: Individual):
         return individual.fitness
@@ -87,6 +94,7 @@ class PopulatoinFactory:
     PopulationFactory is a counterpart of `IndividualFactory` and provides methods of creating populations with random
     individuals, with given individuals, and with minimal-fitness individuals.
     """
+
     def __init__(self, individual_factory: IndividualFactory):
         self.individual_factory = individual_factory
 
@@ -99,7 +107,7 @@ class PopulatoinFactory:
     def with_individuals(self, individuals):
         return Population(individuals)
 
-    def with_minimal_fitness_inidividuals(self, size: int):
+    def with_minimal_fitness_individuals(self, size: int):
         individuals = []
         for i in range(size):
             individuals.append(self.individual_factory.with_minimal_fitness())
@@ -151,15 +159,15 @@ class SinglePointCrossover:
         self.individual_factory = individual_factory
 
     def crossover(self, parent_1: Individual, parent_2: Individual):
-        crossover_point = random.randint(0, len(parent_1.genotype))
+        crossover_point = np.random.random((len(parent_1.genotype,))) > 0.5
         genotype_1 = self._new_genotype(crossover_point, parent_1, parent_2)
         genotype_2 = self._new_genotype(crossover_point, parent_2, parent_1)
         child_1 = self.individual_factory.with_set_genotype(genotype=genotype_1)
         child_2 = self.individual_factory.with_set_genotype(genotype=genotype_2)
         return child_1, child_2
 
-    def _new_genotype(self, crossover_point: int, parent_1: Individual, parent_2: Individual):
-        return parent_1.genotype[:crossover_point] + parent_2.genotype[crossover_point:]
+    def _new_genotype(self, crossover_point: np.ndarray, parent_1: Individual, parent_2: Individual):
+        return np.where(crossover_point, parent_1.genotype, parent_2.genotype)
 
 
 class Mutator:
@@ -167,13 +175,13 @@ class Mutator:
         self.individual_factory = individual_factory
 
     def mutate(self, individual: Individual):
-        mutated_genotype = list(individual.genotype)
         mutation_probability = 1 / len(individual.genotype)
-        for index, gene in enumerate(individual.genotype):
-            if random.random() < mutation_probability:
-                mutated_genotype[index] = '0' if gene == '1' else '1'
 
-        return self.individual_factory.with_set_genotype(genotype="".join(mutated_genotype))
+        mutated_genotype = individual.genotype
+        mutated_genotype = np.where(np.random.random((len(mutated_genotype),)) > mutation_probability,
+                                    np.random.random((len(mutated_genotype,))), mutated_genotype)
+
+        return self.individual_factory.with_set_genotype(genotype=mutated_genotype)
 
 
 class Breeder:
@@ -218,7 +226,8 @@ class Environment:
     def update(self):
         parents = self.parent_selector.select_parents(self.population)
         next_generation = self.breeder.produce_offspring(parents)
-        self.population = self.population_factory.with_individuals(next_generation)
+        self.population = self.population_factory.with_individuals(random.sample(next_generation, len(parents)))
+        # self.population = self.population_factory.with_individuals(self.population.get_the_fittest(len(parents)))
 
     def get_the_fittest(self, n: int):
         return self.population.get_the_fittest(n)
@@ -226,14 +235,19 @@ class Environment:
 
 if __name__ == '__main__':
     TOTAL_GENERATIONS = 10000
-    POPULATION_SIZE = 50
-    GENOTYPE_LENGTH = 20
+    POPULATION_SIZE = 100
+    GENOTYPE_LENGTH = 6
 
     current_generation = 1
 
+    x = np.random.random((GENOTYPE_LENGTH,))
+    bias = np.random.random((1,))
+    goal = 0
+    print("X: {}\nbias: {}".format(x, bias))
+
     genotype_decoder = GenotypeDecoder()
     fitness_evaluator = FitnessEvaluator(genotype_decoder)
-    individual_factory = IndividualFactory(GENOTYPE_LENGTH, fitness_evaluator)
+    individual_factory = IndividualFactory(GENOTYPE_LENGTH, fitness_evaluator, x, bias, goal)
     population_factory = PopulatoinFactory(individual_factory)
     single_point_crossover = SinglePointCrossover(individual_factory)
     mutator = Mutator(individual_factory)
@@ -245,11 +259,12 @@ if __name__ == '__main__':
     while current_generation <= TOTAL_GENERATIONS:
         fittest = environment.get_the_fittest(1)[0]
         highest_fitness_list.append(fittest.fitness)
-        if "0" not in fittest.genotype:
+        if fittest.fitness < 0.001:
             print("Winner, winner, chicken dinner! We got there")
             break
         environment.update()
         current_generation += 1
+        print(current_generation, fittest.fitness)
 
     print("Stopped at generation " + str(current_generation - 1) + ". The fittest individual: ")
     print(fittest)
