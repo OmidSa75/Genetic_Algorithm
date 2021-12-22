@@ -32,22 +32,42 @@ class IndividualFactory:
         self.binary_string_format = '{:0' + str(self.genotype_length) + 'b}'
 
     def with_random_genotype(self):
+        """
+        Creates an individual with a random genotype-used at the very beginning to create
+         a random population as a starting point
+        :return: Individual
+        """
         genotype_max_value = 2 ** self.genotype_length
         random_genotype = self.binary_string_format.format(random.randint(0, genotype_max_value))
         fitness = self.fitness_evaluator.evaluate(random_genotype)
         return Individual(random_genotype, fitness)
 
     def with_set_genotype(self, genotype: str):
+        """
+        Creates an individual with a provided genotype-used when a new individual is created through the breeding of
+        two individuals from the previous generation.
+        :param genotype:
+        :return:
+        """
         fitness = self.fitness_evaluator.evaluate(genotype)
         return Individual(genotype, fitness)
 
     def with_minimal_fitness(self):
+        """
+        Creates an individual with a genotype consisting solely of zeros-used to create an alternative starting point
+        with a population of individuals with fitness == 0
+        :return:
+        """
         minimal_fitness_genotype = self.binary_string_format.format(0)
         fitness = self.fitness_evaluator.evaluate(minimal_fitness_genotype)
         return Individual(minimal_fitness_genotype, fitness)
 
 
 class Population:
+    """
+    Population class holds a collection of individuals. It provides a way of getting the fittest individuals through
+    `get_the_fittest` method.
+    """
     def __init__(self, individuals):
         self.individuals = individuals
 
@@ -63,6 +83,10 @@ class Population:
 
 
 class PopulatoinFactory:
+    """
+    PopulationFactory is a counterpart of `IndividualFactory` and provides methods of creating populations with random
+    individuals, with given individuals, and with minimal-fitness individuals.
+    """
     def __init__(self, individual_factory: IndividualFactory):
         self.individual_factory = individual_factory
 
@@ -83,6 +107,11 @@ class PopulatoinFactory:
 
 
 class ParentSelector:
+    """
+    In this implementation, each new generation will completely replace the previous generation.
+    This, combined with the fact that each pair of parents will produce two children, will lead to
+    **Constant population size**.
+    """
     def select_parents(self, population: Population):
         total_fitness = 0
         fitness_scale = []
@@ -153,6 +182,15 @@ class Breeder:
         self.mutator = mutator
 
     def produce_offspring(self, parents):
+        """
+        With each iteration the algorithm:
+        1. Picks two individuals from the pool at random.
+        2. Creates two new individuals by crossing over the genotypes of the selected parents.
+        3. Mutates the genotypes of the newly created offspring.
+        4. Adds so created individuals to the offspring collection, which will become the next generation.;
+        :param parents:
+        :return:
+        """
         offspring = []
         number_of_parents = len(parents)
         for index in range(int(number_of_parents)):
