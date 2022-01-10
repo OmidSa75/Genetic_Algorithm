@@ -83,7 +83,7 @@ class Population:
         return self.individuals[:n]
 
     def _sort_by_fitness(self):
-        self.individuals.sort(key=self._individual_fitness_sort_key, reverse=False)
+        self.individuals.sort(key=self._individual_fitness_sort_key, reverse=False)  # change
 
     def _individual_fitness_sort_key(self, individual: Individual):
         return individual.fitness
@@ -175,14 +175,16 @@ class Mutator:
         self.individual_factory = individual_factory
 
     def mutate(self, individual: Individual):
-        mutation_probability = 1 / len(individual.genotype)
+        mutation_probability = 1 / len(individual.genotype) * 10
 
-        mutated_genotype = individual.genotype
-        mutated_genotype = np.where(np.random.randn(len(mutated_genotype)) > mutation_probability,
-                                    (-1) * mutated_genotype, mutated_genotype)
+        if random.random() > 0.8:
+            mutated_genotype = individual.genotype
+            mutated_genotype = np.where(np.random.randn(len(mutated_genotype)) < mutation_probability,
+                                        np.random.randn(len(mutated_genotype)), mutated_genotype)
 
-        return self.individual_factory.with_set_genotype(genotype=mutated_genotype)
-
+            return self.individual_factory.with_set_genotype(genotype=mutated_genotype)
+        else:
+            return individual
 
 class Breeder:
     def __init__(self, single_point_crossover: SinglePointCrossover, mutator: Mutator):
@@ -203,10 +205,13 @@ class Breeder:
         number_of_parents = len(parents)
         for index in range(int(number_of_parents/2)):
             parent_1, parent_2 = self._pick_random_parents(parents, number_of_parents)
-            child_1, child_2 = self.single_point_crossover.crossover(parent_1, parent_2)
-            child_1_mutated = self.mutator.mutate(child_1)
-            child_2_mutated = self.mutator.mutate(child_2)
-            offspring.extend((child_1_mutated, child_2_mutated))
+            if random.random() > 0.4:
+                child_1, child_2 = self.single_point_crossover.crossover(parent_1, parent_2)
+                child_1_mutated = self.mutator.mutate(child_1)
+                child_2_mutated = self.mutator.mutate(child_2)
+                offspring.extend((child_1_mutated, child_2_mutated))
+            else:
+                offspring.extend((parent_1, parent_2))
         return offspring
 
     def _pick_random_parents(self, parents, number_of_parents: int):
@@ -234,7 +239,7 @@ class Environment:
 
 
 if __name__ == '__main__':
-    TOTAL_GENERATIONS = 50000
+    TOTAL_GENERATIONS = 10000
     POPULATION_SIZE = 50
     GENOTYPE_LENGTH = 6
 
@@ -260,7 +265,7 @@ if __name__ == '__main__':
         fittest = environment.get_the_fittest(1)[0]
         highest_fitness_list.append(fittest.fitness)
         if fittest.fitness < 0.001:
-            print("Winner, winner, chicken dinner! We got there")
+            print("Winner")
             break
         environment.update()
         current_generation += 1
